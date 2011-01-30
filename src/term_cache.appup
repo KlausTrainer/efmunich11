@@ -1,5 +1,5 @@
 {"0.1.0",
-    [{"0.1.0", [{update, term_cache}]}],
-%    [{"0.1.0", [{update, term_cache, {advanced, []}}]}],
+%    [{"0.1.0", [{update, term_cache}]}],
+    [{"0.1.0", [{update, term_cache, {advanced, [{max_size, 100}]}}]}],
     []
 }.
