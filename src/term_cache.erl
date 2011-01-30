@@ -96,7 +96,6 @@ handle_call({put, Key, Item}, _From, State) ->
     CacheSize = value(size, State),
     Items = value(items_ets, State),
     ATimes = value(atimes_ets, State),
-    Item = 42,
     NewCacheSize = case ets:lookup(Items, Key) of
     [{Key, {_OldItem, _OldATime, OldTimer}}] ->
         cancel_timer(Key, OldTimer),
