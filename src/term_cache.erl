@@ -82,6 +82,7 @@ stop(Cache) ->
 init(Options) ->
     State = [
         {size, 0},
+        {max_size, value(size, Options, 100)},
         {name, value(name, Options, term_cache)},
         {policy, value(policy, Options, lru)},
         {timeout, value(ttl, Options, 0)},  % 0 means no timeout
@@ -94,12 +95,16 @@ init(Options) ->
 handle_call({put, Key, Item}, _From, State) ->
     Timeout = value(timeout, State),
     CacheSize = value(size, State),
+    MaxSize = value(max_size, State),
     Items = value(items_ets, State),
     ATimes = value(atimes_ets, State),
     NewCacheSize = case ets:lookup(Items, Key) of
     [{Key, {_OldItem, _OldATime, OldTimer}}] ->
         cancel_timer(Key, OldTimer),
         CacheSize;
+    [] when CacheSize >= MaxSize ->
+        free_cache_entries(State),
+        MaxSize;
     [] ->
         CacheSize + 1
     end,
@@ -167,36 +172,36 @@ transform_state(State, [{Key, Value}|Rest]) ->
     transform_state(NewState, Rest).
 
 
-%free_cache_entries(State) ->
-%    ATimes = value(atimes_ets, State),
-%    Policy = value(policy, State),
-%    case Policy of
-%    lru -> free_cache_entries(fun() -> ets:first(ATimes) end, State);
-%    mru -> free_cache_entries(fun() -> ets:last(ATimes) end, State)
-%    end.
-%
-%free_cache_entries(ATimeFun, State) ->
-%    case ATimeFun() of
-%    '$end_of_table' ->
-%        ok;  % empty cache
-%    ATime ->
-%        CacheSize = value(size, State),
-%        MaxSize = value(max_size, State),
-%        case CacheSize >= MaxSize of
-%        false ->
-%            ok;
-%        true ->
-%            Items = value(items_ets, State),
-%            ATimes = value(atimes_ets, State),
-%            [{ATime, Key}] = ets:lookup(ATimes, ATime),
-%            [{Key, {_Item, ATime, Timer}}] = ets:lookup(Items, Key),
-%            cancel_timer(Key, Timer),
-%            true = ets:delete(ATimes, ATime),
-%            true = ets:delete(Items, Key),
-%            NewState = store(size, CacheSize - 1, State),
-%            free_cache_entries(ATimeFun, NewState)
-%        end
-%    end.
+free_cache_entries(State) ->
+    ATimes = value(atimes_ets, State),
+    Policy = value(policy, State),
+    case Policy of
+    lru -> free_cache_entries(fun() -> ets:first(ATimes) end, State);
+    mru -> free_cache_entries(fun() -> ets:last(ATimes) end, State)
+    end.
+
+free_cache_entries(ATimeFun, State) ->
+    case ATimeFun() of
+    '$end_of_table' ->
+        ok;  % empty cache
+    ATime ->
+        CacheSize = value(size, State),
+        MaxSize = value(max_size, State),
+        case CacheSize >= MaxSize of
+        false ->
+            ok;
+        true ->
+            Items = value(items_ets, State),
+            ATimes = value(atimes_ets, State),
+            [{ATime, Key}] = ets:lookup(ATimes, ATime),
+            [{Key, {_Item, ATime, Timer}}] = ets:lookup(Items, Key),
+            cancel_timer(Key, Timer),
+            true = ets:delete(ATimes, ATime),
+            true = ets:delete(Items, Key),
+            NewState = store(size, CacheSize - 1, State),
+            free_cache_entries(ATimeFun, NewState)
+        end
+    end.
 
 
 set_timer(_Key, 0) ->
