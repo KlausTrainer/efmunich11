@@ -37,7 +37,7 @@ get(Cache, Key) ->
 
 %% @spec put(cache(), key(), item()) -> ok
 put(Cache, Key, Item) ->
-    gen_server:cast(Cache, {put, Key, Item}).
+    gen_server:call(Cache, {put, Key, Item}, infinity).
 
 
 %% @spec start() -> ok | {error, Reason}
@@ -91,7 +91,7 @@ init(Options) ->
     {ok, State}.
 
 
-handle_cast({put, Key, Item}, State) ->
+handle_call({put, Key, Item}, _From, State) ->
     Timeout = value(timeout, State),
     CacheSize = value(size, State),
     Items = value(items_ets, State),
@@ -109,7 +109,7 @@ handle_cast({put, Key, Item}, State) ->
     true = ets:insert(ATimes, {ATime, Key}),
     true = ets:insert(Items, {Key, {Item, ATime, Timer}}),
     NewState = store(size, NewCacheSize, State),
-    {noreply, NewState}.
+    {reply, ok, NewState};
 
 handle_call({get, Key}, _From, State) ->
     Timeout = value(timeout, State),
@@ -130,6 +130,10 @@ handle_call({get, Key}, _From, State) ->
 
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State}.
+
+
+handle_cast(_, State) ->
+    {noreply, State}.
 
 
 handle_info({expired, Key}, State) ->
